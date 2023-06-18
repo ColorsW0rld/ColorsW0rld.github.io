@@ -7,6 +7,7 @@ step3 在index.html中，加入对应文件索引
 
 其中，批量重命名代码和索引生成代码如下，运行后可以直接Ctrl-c，Ctrl-v
 ```bash
+# 以2022年为例，其他年份需要修改2022为对应年份
 # 重命名文件名，添加ColorsWorld_日期_原始标题
 grep -Hnr "publish_time" *| awk -F"(:)|(>)|(<)" '{print "mv " "\"" $1 "\"" " \"ColorsWorld_" $5 "_" $1 "\" "}' > rename.sh
 sh rename.sh
