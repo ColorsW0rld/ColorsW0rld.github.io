@@ -16,6 +16,3 @@ ls *.html | awk -F"(.html)" '{print $1 }'|awk -F"(_ColorsWorld_2022-)|(.html)" '
 
 ls *.html | awk -F"(.html)" '{print $1 }'|awk -F"ColorsWorld_2022-" '{print "<li><a href=\"articles/2022/" $0 ".html\">" $2  "</a></li>"}'
 ```
-
-#### 加入贡献
-- 可以邮件ggy_778@sina.com加入我们一起备份
