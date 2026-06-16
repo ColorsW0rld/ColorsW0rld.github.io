@@ -12,7 +12,7 @@ step3 在index.html中，加入对应文件索引
 grep -Hnr "publish_time" *| awk -F"(:)|(>)|(<)" '{print "mv " "\"" $1 "\"" " \"ColorsWorld_" $5 "_" $1 "\" "}' > rename.sh
 sh rename.sh
 # 对当前目录下重命名的html生成index.html代码
-ls *.html | awk -F"(.html)" '{print $1 }'|awk -F"(_ColorsWorld_2022-)|(.html)" '{print "<li><a href=\"articles/2022/" $0 ".html\">" $1  "</a></li>"}'
+ls *.html | awk -F"(.html)" '{print $1 }'|awk -F"(_ColorsWorld_2026-)|(.html)" '{print "<li><a href=\"articles/2026/" $0 ".html\">" $1  "</a></li>"}'
 
-ls *.html | awk -F"(.html)" '{print $1 }'|awk -F"ColorsWorld_2022-" '{print "<li><a href=\"articles/2022/" $0 ".html\">" $2  "</a></li>"}'
+ls *.html | awk -F"(.html)" '{print $1 }'|awk -F"ColorsWorld_2026-" '{print "<li><a href=\"articles/2026/" $0 ".html\">" $2  "</a></li>"}'
 ```
