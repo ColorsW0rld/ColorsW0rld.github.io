@@ -1,0 +1,70 @@
+name: 整理上传的微信文章
+
+on:
+  push:
+    branches: [main]
+    paths: ['incoming/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: article-archive
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 获取最新仓库（不下载历史文章正文）
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /*
+            !/articles/
+      - name: 设置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: 安装整理工具
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: 检查整理工具
+        run: npm test
+      - name: 整理文章并记录结果
+        id: organize
+        shell: bash
+        run: |
+          set +e
+          npm run archive
+          result=$?
+          echo "result=$result" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: 提交归档结果
+        shell: bash
+        run: |
+          git add --sparse -- index.html incoming
+          if [ -d articles ]; then
+            git add --sparse -- articles
+          fi
+          if git diff --cached --quiet; then
+            echo '没有需要提交的归档变更。' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m '归档新上传的微信文章'
+          if ! git push origin HEAD:main; then
+            echo '提交未能推送：可能有人同时更新了仓库，或分支规则禁止机器人写入。上传的原文件仍在远端，请查看维护者指南并重新运行。' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo '归档结果已提交到远端。Render 将检测新提交并发布。' >> "$GITHUB_STEP_SUMMARY"
+      - name: 标记未完成的文章
+        if: steps.organize.outputs.result != '0'
+        run: |
+          echo '有文章整理失败，请查看本次运行摘要。成功的文章已在上一阶段单独提交。'
+          exit 1

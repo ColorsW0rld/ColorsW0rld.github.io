@@ -1,0 +1,13 @@
+{
+  "name": "colorsworld-archive",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "archive": "node scripts/archive.mjs",
+    "test": "node --test scripts/archive.test.mjs"
+  },
+  "dependencies": {
+    "parse5": "8.0.0"
+  }
+}
