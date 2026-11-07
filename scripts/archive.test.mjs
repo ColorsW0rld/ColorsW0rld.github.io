@@ -22,9 +22,13 @@ test('publication dates support saved English, Chinese and numeric formats', () 
   for (const value of ['Oct 31, 2026, 6:00 PM', '2026年10月31日 18:00', '2026-10-31 18:00']) {
     assert.deepEqual(parseDate(value), { year: 2026, date: '2026-10-31', hour: '18' });
   }
+  for (const value of ['2026年1月2日', '2026-01-02', '2026/1/2']) {
+    assert.deepEqual(parseDate(value), { year: 2026, date: '2026-01-02', hour: '99' });
+  }
+  assert.equal(parseDate('2026-01-02 00:00').hour, '00');
   assert.equal(parseDate('Jan 1, 2026, 12:00 AM').hour, '00');
   assert.equal(parseDate('Jan 1, 2026, 12:00 PM').hour, '12');
-  for (const invalid of ['', 'Unknown', '昨天', '2026-02-30 18:00', '2026年13月01日 18:00', '2026-01-01 24:00', 'Oct 31, 2026, 13:00 PM']) assert.throws(() => parseDate(invalid));
+  for (const invalid of ['', 'Unknown', '昨天', '2026-02-30 18:00', '2026年13月01日 18:00', '2026-01-01 24:00', '2026-01-01 99:00', 'Oct 31, 2026, 13:00 PM']) assert.throws(() => parseDate(invalid));
 });
 
 test('metadata reads HTML entities and requires article source, publication date and body', () => {
@@ -53,11 +57,11 @@ test('historical index names with Chinese dates and repeated prefixes are recogn
 });
 
 test('index inserts escaped links and years while keeping old markup byte for byte', () => {
-  const destination = 'articles/2026/a&b#100%.html';
+  const destination = 'articles/2026/ColorsWorld_2026年10月31日 18_A & B < C#100%.html';
   const added = addToIndex(index, { year: 2026, date: '2026-10-31', title: 'A & B < C' }, destination);
-  assert.ok(added.includes('a%26b%23100%25.html'));
+  assert.ok(added.includes('A%20%26%20B%20%3C%20C%23100%25.html'));
   assert.ok(catalog(added).paths.has(destination));
-  assert.ok(added.includes('A &amp; B &lt; C'));
+  assert.ok(added.includes('>ColorsWorld_2026年10月31日 18_A &amp; B &lt; C#100%</a>'));
   assert.equal(added.replace(/<li>.*<\/li>\n/, ''), index);
   const middle = addToIndex(index, { year: 2025, date: '2025-01-01', title: '新文章' }, 'articles/2025/new.html');
   assert.ok(middle.indexOf('<h3>2025') < middle.indexOf('<h3>2024'));
@@ -73,7 +77,8 @@ test('batch preserves original bytes, keeps failed files, and repeated runs add 
   await writeFile(path.join(root, 'incoming', '验证页面.html'), '<p>请验证</p>');
   const results = await archive(root);
   const success = results.find(r => r.status === 'archived');
-  assert.ok(success.destination.startsWith('articles/2026/ColorsWorld_2026-10-31 18_'));
+  assert.equal(success.destination, 'articles/2026/ColorsWorld_2026年10月31日 18_议题招募丨秋日会客厅：最微小的火种.html');
+  assert.ok((await readFile(path.join(root, 'index.html'), 'utf8')).includes('>ColorsWorld_2026年10月31日 18_议题招募丨秋日会客厅：最微小的火种</a>'));
   assert.deepEqual(await readFile(path.join(root, success.destination)), original);
   assert.equal(results.filter(r => r.status === 'failed').length, 1);
   await writeFile(path.join(root, 'incoming', '重复下载.html'), original);
@@ -83,11 +88,28 @@ test('batch preserves original bytes, keeps failed files, and repeated runs add 
   assert.deepEqual((await readdir(path.join(root, 'incoming'))).sort(), ['重复下载.html', '验证页面.html'].sort());
 });
 
+test('missing hour uses 99; midnight uses 00; labels match sanitized filenames', async t => {
+  const root = await workspace(t);
+  await writeFile(path.join(root, 'incoming', 'date-only.html'), saved({ title: 'A/B', date: '2026年1月2日' }));
+  await writeFile(path.join(root, 'incoming', 'midnight.html'), saved({ title: '午夜', date: '2026-01-03 00:30' }));
+  const results = await archive(root);
+  assert.deepEqual(results.map(r => r.destination), [
+    'articles/2026/ColorsWorld_2026年1月2日 99_A_B.html',
+    'articles/2026/ColorsWorld_2026年1月3日 00_午夜.html',
+  ]);
+  const updated = await readFile(path.join(root, 'index.html'), 'utf8');
+  for (const result of results) {
+    assert.ok(updated.includes(`>${path.posix.basename(result.destination, '.html')}</a>`));
+  }
+  await writeFile(path.join(root, 'incoming', 'duplicate.html'), saved({ title: 'A/B', date: '2026年1月2日' }));
+  assert.equal((await archive(root))[0].status, 'duplicate');
+});
+
 test('filename collision does not overwrite existing files', async t => {
   const root = await workspace(t);
   const directory = path.join(root, 'articles', '2026');
   await mkdir(directory, { recursive: true });
-  const output = path.join(directory, 'ColorsWorld_2026-10-31 18_测试.html');
+  const output = path.join(directory, 'ColorsWorld_2026年10月31日 18_测试.html');
   await writeFile(output, 'existing');
   await writeFile(path.join(root, 'incoming', 'new.html'), saved({ title: '测试' }));
   assert.equal((await archive(root))[0].status, 'failed');
@@ -98,7 +120,7 @@ test('tracked files omitted by sparse checkout remain protected', async t => {
   const root = await workspace(t);
   const directory = path.join(root, 'articles', '2026');
   await mkdir(directory, { recursive: true });
-  const output = path.join(directory, 'ColorsWorld_2026-10-31 18_测试.html');
+  const output = path.join(directory, 'ColorsWorld_2026年10月31日 18_测试.html');
   await writeFile(output, 'existing');
   execFileSync('git', ['init', '--quiet'], { cwd: root });
   execFileSync('git', ['add', 'articles'], { cwd: root });
