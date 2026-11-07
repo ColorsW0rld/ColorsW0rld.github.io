@@ -17,10 +17,10 @@ const key = (date, title) => `${date}:${safeTitle(title.normalize('NFKC')).repla
 
 export function parseDate(value) {
   const clean = value.replace(/\s+/g, ' ').trim();
-  let year, month, day, hour = 0, minute = 0;
+  let year, month, day, hour, minute = 0;
   const numeric = clean.match(/^(\d{4})(?:年|-|\/)(\d{1,2})(?:月|-|\/)(\d{1,2})日?(?:[ T]+(\d{1,2})(?::(\d{2}))?)?$/);
   if (numeric) {
-    [, year, month, day, hour = '0', minute = '0'] = numeric;
+    [, year, month, day, hour, minute = '0'] = numeric;
   } else {
     const english = clean.match(/^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4}),?\s+(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
     if (!english) throw new Error(`无法识别发布日期：${clean || '空白'}。请重新保存显示完整日期的原文。`);
@@ -30,13 +30,14 @@ export function parseDate(value) {
     if (+hour < 1 || +hour > 12) throw new Error('发布日期的小时无效。');
     hour = (+hour % 12) + (english[6].toUpperCase() === 'PM' ? 12 : 0);
   }
+  const missingHour = hour === undefined;
   [year, month, day, hour, minute] = [year, month, day, hour, minute].map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
-  if (year < 2000 || year > 2100 || date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day || hour > 23 || minute > 59) {
+  if (year < 2000 || year > 2100 || date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day || (!missingHour && hour > 23) || minute > 59) {
     throw new Error('发布日期无效；不会用下载日期代替。');
   }
   const pad = n => String(n).padStart(2, '0');
-  return { year, date: `${year}-${pad(month)}-${pad(day)}`, hour: pad(hour) };
+  return { year, date: `${year}-${pad(month)}-${pad(day)}`, hour: missingHour ? '99' : pad(hour) };
 }
 
 export function metadata(html) {
@@ -95,7 +96,7 @@ export function addToIndex(index, article, destination) {
   const headings = [...walk(doc)].filter(n => n.tagName === 'h3' && /^\d{4}$/.test(text(n).trim()));
   const heading = headings.find(n => text(n).trim() === String(article.year));
   const href = destination.split('/').map(encodeURIComponent).join('/');
-  const link = `<li><a href="${escape(href)}">${escape(`${article.date} ${article.title}`)}</a></li>\n`;
+  const link = `<li><a href="${escape(href)}">${escape(path.posix.basename(destination, '.html'))}</a></li>\n`;
   let position, addition;
   if (heading) {
     const siblings = heading.parentNode.childNodes;
@@ -122,7 +123,8 @@ function filename(article) {
     if (Buffer.byteLength(title + char, 'utf8') > 160) break;
     title += char;
   }
-  return `ColorsWorld_${article.date} ${article.hour}_${title.replace(/[. ]+$/g, '')}.html`;
+  const [year, month, day] = article.date.split('-').map(Number);
+  return `ColorsWorld_${year}年${month}月${day}日 ${article.hour}_${title.replace(/[. ]+$/g, '')}.html`;
 }
 
 export async function archive(root) {
